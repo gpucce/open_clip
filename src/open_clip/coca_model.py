@@ -127,6 +127,8 @@ class CoCa(nn.Module):
 
         x = self.visual.ln_post(x)
 
+        x = x @ self.visual.proj
+
         x = self.img_attn_pool(x, x)
         x = self.img_attn_pool_norm(x)
 
