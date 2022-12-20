@@ -125,7 +125,7 @@ class CoCa(nn.Module):
     def encode_image(self, images, normalize=True, return_tokens=False):
         x = self.visual(images, output_tokens=True)
 
-        x[:, 0] = self.visual.ln_post(x[:, 0])
+        x = self.visual.ln_post(x)
 
         x = self.img_attn_pool(x, x)
         x = self.img_attn_pool_norm(x)
