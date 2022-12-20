@@ -123,7 +123,7 @@ class CoCa(nn.Module):
         self.multimodal_decoder.grad_checkpointing = enable
 
     def encode_image(self, images, normalize=True, return_tokens=False):
-        self.visual(images, output_tokens=True)
+        x = self.visual(images, output_tokens=True)
 
         x = self.img_attn_pool(x, x)
         x = self.img_attn_pool_norm(x)
