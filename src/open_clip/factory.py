@@ -12,8 +12,9 @@ import torch
 from .constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
     resize_pos_embed, get_cast_dtype
+from .set_sustain_model import SelfSustainClip
 from .coca_model import CoCa
-from .loss import ClipLoss, DistillClipLoss, CoCaLoss
+from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SelfSustainClipLoss
 from .openai import load_openai_model
 from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained, list_pretrained_tags_by_model, download_pretrained_from_hf
 from .transform import image_transform, AugmentationCfg
@@ -188,6 +189,8 @@ def create_model(
                 model_cfg['text_cfg']['hf_model_pretrained'] = pretrained_hf
             if "coca" in model_name:
                 model = CoCa(**model_cfg, cast_dtype=cast_dtype)
+            elif args.self_sustain:
+                model = SelfSustainClip(**model_cfg, cast_dtype=cast_dtype)
             else:
                 model = CustomTextCLIP(**model_cfg, cast_dtype=cast_dtype)
         else:
@@ -260,6 +263,18 @@ def create_loss(args):
             rank=args.rank,
             world_size=args.world_size,
             use_horovod=args.horovod,
+        )
+    elif args.self_sustain:
+        return SelfSustainClipLoss(
+            local_loss=args.local_loss,
+            gather_with_grad=args.gather_with_grad,
+            cache_labels=True,
+            rank=args.rank,
+            world_size=args.world_size,
+            use_horovod=args.horovod,
+            oracle_name_or_path=args.self_sustain_oracle_name,
+            lambda_start_epoch=args.self_sustain_lambda_start,
+            lambda_end_epoch=args.self_sustain_lambda_end,
         )
     return ClipLoss(
         local_loss=args.local_loss,

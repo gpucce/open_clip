@@ -57,7 +57,7 @@ def parse_args(args):
         "--val-num-samples",
         type=int,
         default=None,
-        help="Number of samples in dataset. Useful for webdataset if not available in info file.",
+        help="Number of samplif transes in dataset. Useful for webdataset if not available in info file.",
     )
     parser.add_argument(
         "--dataset-type",
@@ -423,6 +423,27 @@ def parse_args(args):
         "--distill-pretrained",
         default=None,
         help='Which pre-trained weights to distill from, if any.'
+    )
+    parser.add_argument(
+        "--self-sustain",
+        default=False,
+        action="store_true"
+        help="Whether to use selfsustaining clip loss"
+    )
+    parser.add_argument(
+        "--self-sustain-oracle-model",
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        help="Which pre-trained text encoder to use in self sustain loss"
+    )
+    parser.add_argument(
+        "--self-sustain-lambda-start",
+        default=0,
+        help="Which part of the training to start dropping teaching",
+    )
+    parser.add_argument(
+        "--self-sustain-lambda-end",
+        default=0,
+        help="Which part of the training to finish dropping teaching",
     )
     args = parser.parse_args(args)
 
