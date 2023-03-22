@@ -232,7 +232,7 @@ class SelfSustainClipLoss(ClipLoss):
         # compute lambda as function of epoch
         # linear swipe between lambda_start_epoch and lambda_end_epoch
         lamb = (
-            (torch.Tensor([epoch]).to(im.device) - self.lambda_start_epoch) / 
+            (torch.Tensor([epoch]).to(device) - self.lambda_start_epoch) / 
             (self.lambda_end_epoch - self.lambda_start_epoch)
         )
         # clamp between 0 and 1
@@ -297,8 +297,7 @@ class DistillClipLoss(ClipLoss):
         return -(teacher_logits.softmax(dim=1) * student_logits.log_softmax(dim=1)).sum(dim=1).mean(dim=0)
 
     def forward(
-            self,with torch.no_grad():
-            oracle_s_emb = self.text_oracle_model.encode(texts, convert_to_tensor=True, normalize_embeddings=True).to(im.device)
+            self,
             image_features,
             text_features,
             logit_scale,
