@@ -194,9 +194,9 @@ class SelfSustainClipLoss(ClipLoss):
         
         with torch.no_grad():
             if text is None:
-                oracle_s_emb = self.text_oracle(input_ids=text_features.to(im.device))
+                oracle_s_emb = self.text_oracle(input_ids=text_features.to(device))
             else:
-                oracle_s_emb = self.text_oracle(self.tokenize(text))
+                oracle_s_emb = self.text_oracle(self.tokenize(text, device))
         
         # TODO: create all this logit scales
         im2im_logits = self.get_logits(image_features, image_features, im2im_logit_scale)
@@ -204,7 +204,7 @@ class SelfSustainClipLoss(ClipLoss):
         oracle_logits = self.get_logits(oracle_s_emb, oracle_s_emb, oracle_logit_scale)
 
         im2im_vs_teacher_loss = self._listnet_loss(oracle_logits, im2im_logits)
-        txt2txt_vs_teacher_loss = self._listnet_loss(oracle_logits, txt2ttxt_logits)
+        txt2txt_vs_teacher_loss = self._listnet_loss(oracle_logits, txt2txt_logits)
 
         # listnet losses against learned multimodal embeddings
         # 1.symmetric listness loss for text
@@ -263,8 +263,7 @@ class CoCaLoss(ClipLoss):
             use_horovod=False,
     ):
         super().__init__(
-            local_loss=local_loss,with torch.no_grad():
-            oracle_s_emb = self.text_oracle_model.encode(texts, convert_to_tensor=True, normalize_embeddings=True).to(im.device)
+            local_loss=local_loss,
             gather_with_grad=gather_with_grad,
             cache_labels=cache_labels,
             rank=rank,
