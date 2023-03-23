@@ -1,6 +1,7 @@
 from itertools import repeat
 import collections.abc
 
+import torch
 from torch import nn as nn
 from torchvision.ops.misc import FrozenBatchNorm2d
 
@@ -58,3 +59,9 @@ to_2tuple = _ntuple(2)
 to_3tuple = _ntuple(3)
 to_4tuple = _ntuple(4)
 to_ntuple = lambda n, x: _ntuple(n)(x)
+
+
+def mean_pooling(model_output, attention_mask):
+    token_embeddings = model_output[0] #First element of model_output contains all token embeddings
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)

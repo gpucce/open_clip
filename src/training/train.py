@@ -63,6 +63,9 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
     device = torch.device(args.device)
     autocast = get_autocast(args.precision)
     cast_dtype = get_cast_dtype(args.precision)
+    
+    if hasattr(loss, "epoch"):
+        loss.epoch = epoch
 
 
     model.train()
@@ -88,7 +91,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts = batch
+        images, texts, raw_texts = batch
         images = images.to(device=device, dtype=cast_dtype, non_blocking=True)
         texts = texts.to(device=device, non_blocking=True)
 
@@ -103,7 +106,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     with torch.no_grad():
                         dist_model_out = dist_model(images, texts)
                     model_out.update({f'dist_{k}' : v for k, v in dist_model_out.items()})
-                losses = loss(**model_out, output_dict=True)
+                losses = loss(**model_out, output_dict=True, text=raw_texts)
 
                 total_loss = sum(losses.values())
                 losses["loss"] = total_loss

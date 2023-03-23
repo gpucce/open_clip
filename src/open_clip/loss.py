@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from .utils import mean_pooling
 
 try:
     import torch.distributed.nn
@@ -16,10 +17,12 @@ except ImportError:
     hvd = None
     
 try:
-    from transformers import AutoModel, AutoTokenizer
+    import transformers
 except ImportError:
     transformers = None
 
+
+    
 def gather_features(
         image_features,
         text_features,
@@ -144,9 +147,10 @@ class SelfSustainClipLoss(ClipLoss):
         rank=0,
         world_size=1,
         use_horovod=False,
-        oracle_name_or_path"sentence-transformers/all-MiniLM-L6-v2"
-        lambda_start_epoch=0
-        lambda_end_epoch=1
+        oracle_name_or_path="sentence-transformers/all-MiniLM-L6-v2",
+        lambda_start_epoch=0,
+        lambda_end_epoch=1,
+        oracle_max_len=64
     ):
         super().__init__()
         
@@ -157,19 +161,20 @@ class SelfSustainClipLoss(ClipLoss):
         self.oracle_tokenizer = transformers.AutoTokenizer.from_pretrained(oracle_name_or_path)
         self.lambda_start_epoch = lambda_start_epoch
         self.lambda_end_epoch = lambda_end_epoch
+        self.epoch = None
+        self.oracle_max_len = oracle_max_len
         
-        
-    def tokenize(self, x, device):
+    def tokenize(self, text, device):
         return {
             i:j.to(device) for i,j in self.oracle_tokenizer(
-                x,
+                text,
                 return_tensors="pt",
-                max_length=256, 
-                padding="max_length", 
+                padding="max_length",
+                max_length=self.oracle_max_len,
                 truncation=True
             ).items()
         }
-    
+
     def _listnet_loss(self, teacher_scores, student_scores, eps = 1e-10):
         # https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2007-40.pdf
         preds_smax = F.softmax(student_scores, dim=1)
@@ -177,7 +182,8 @@ class SelfSustainClipLoss(ClipLoss):
         preds_smax = preds_smax + eps
         preds_log = torch.log(preds_smax)
         cost = torch.mean(-torch.sum(true_smax * preds_log, dim=1))
-        
+        return cost
+
     def forward(
         self, 
         image_features,
@@ -185,23 +191,25 @@ class SelfSustainClipLoss(ClipLoss):
         logit_scale,
         im2im_logit_scale,
         txt2txt_logit_scale,
-        oracle_logit_sclae,
-        text=None
+        oracle_logit_scale,
+        text=None,
+        output_dict=True
     ):
 
         device = image_features.device
         logits_per_image, logits_per_text = self.get_logits(image_features, text_features, logit_scale)
-        
+
         with torch.no_grad():
-            if text is None:
-                oracle_s_emb = self.text_oracle(input_ids=text_features.to(device))
-            else:
-                oracle_s_emb = self.text_oracle(self.tokenize(text, device))
-        
+            self.text_oracle.to(device)
+            tokenized = self.tokenize(text, device)
+            attn_mask = tokenized["attention_mask"]
+            oracle_s_emb = self.text_oracle(**tokenized)
+            oracle_s_emb = mean_pooling(oracle_s_emb, attn_mask)
+
         # TODO: create all this logit scales
-        im2im_logits = self.get_logits(image_features, image_features, im2im_logit_scale)
-        txt2txt_logits = self.get_logits(text_features, text_features, txt2txt_logit_scale)
-        oracle_logits = self.get_logits(oracle_s_emb, oracle_s_emb, oracle_logit_scale)
+        im2im_logits = self.get_logits(image_features, image_features, im2im_logit_scale)[0]
+        txt2txt_logits = self.get_logits(text_features, text_features, txt2txt_logit_scale)[0]
+        oracle_logits = self.get_logits(oracle_s_emb, oracle_s_emb, oracle_logit_scale)[0]
 
         im2im_vs_teacher_loss = self._listnet_loss(oracle_logits, im2im_logits)
         txt2txt_vs_teacher_loss = self._listnet_loss(oracle_logits, txt2txt_logits)
@@ -209,17 +217,18 @@ class SelfSustainClipLoss(ClipLoss):
         # listnet losses against learned multimodal embeddings
         # 1.symmetric listness loss for text
         multimod_embs_vs_txt2txt = (
-            self.listnet_loss(txt2txt_logits, logits_per_image) + 
-            self.listnet_loss(txt2txt_logits, logits_per_text) +
-            self.listnet_loss(logits_per_image, txt2txt_logits) + 
-            self.listnet_loss(logits_per_text, txt2txt_logits)
+            self._listnet_loss(txt2txt_logits, logits_per_image) + 
+            self._listnet_loss(logits_per_image, txt2txt_logits) +
+            self._listnet_loss(txt2txt_logits, logits_per_text) +
+            self._listnet_loss(logits_per_text, txt2txt_logits)
         ) / 4
+        
         # 2.symmetric listness loss for motion
         multimod_embs_vs_im2im = (
-            self.listnet_loss(im2im_logits, logits_per_image) + 
-            self.listnet_loss(im2im_logits, logits_per_text) + 
-            self.listnet_loss(logits_per_image, im2im_logits) + 
-            self.listnet_loss(logits_per_text, im2im_logits)
+            self._listnet_loss(im2im_logits, logits_per_image) + 
+            self._listnet_loss(logits_per_image, im2im_logits) + 
+            self._listnet_loss(im2im_logits, logits_per_text) + 
+            self._listnet_loss(logits_per_text, im2im_logits)
         ) / 4
 
         # compute bidirectional CE loss (standard cross-modal CLIP objective)
@@ -232,20 +241,23 @@ class SelfSustainClipLoss(ClipLoss):
         # compute lambda as function of epoch
         # linear swipe between lambda_start_epoch and lambda_end_epoch
         lamb = (
-            (torch.Tensor([epoch]).to(device) - self.lambda_start_epoch) / 
+            (torch.Tensor([self.epoch]).to(device) - self.lambda_start_epoch) / 
             (self.lambda_end_epoch - self.lambda_start_epoch)
         )
         # clamp between 0 and 1
         lamb = lamb.clamp(0, 1)
         
         self_sustain_loss = lamb * (multimod_embs_vs_im2im + multimod_embs_vs_txt2txt)
-        oracle_loss = (1 - lamb) * (txt2txt_vs_teacher_loss + m2m_vs_teacher_loss)
+        oracle_loss = (1 - lamb) * (txt2txt_vs_teacher_loss + im2im_vs_teacher_loss)
         
-        return {
-            "contrastive_loss": clip_loss,
-            'self_sustain_loss': self_sustain_loss,
-            'oracle_loss': oracle_loss,
-        }
+        if output_dict:
+            return {
+                "contrastive_loss": clip_loss,
+                'self_sustain_loss': self_sustain_loss,
+                'oracle_loss': oracle_loss,
+            }
+        
+        return clip_loss, self_sustain_loss, oracle_loss
         
         
         

@@ -12,7 +12,7 @@ import torch
 from .constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
     resize_pos_embed, get_cast_dtype
-from .set_sustain_model import SelfSustainClip
+from .self_sustain_model import SelfSustainCLIP
 from .coca_model import CoCa
 from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SelfSustainClipLoss
 from .openai import load_openai_model
@@ -189,8 +189,8 @@ def create_model(
                 model_cfg['text_cfg']['hf_model_pretrained'] = pretrained_hf
             if "coca" in model_name:
                 model = CoCa(**model_cfg, cast_dtype=cast_dtype)
-            elif args.self_sustain:
-                model = SelfSustainClip(**model_cfg, cast_dtype=cast_dtype)
+            elif "selfsustain" in model_name:
+                model = SelfSustainCLIP(**model_cfg, cast_dtype=cast_dtype)
             else:
                 model = CustomTextCLIP(**model_cfg, cast_dtype=cast_dtype)
         else:
@@ -275,6 +275,7 @@ def create_loss(args):
             oracle_name_or_path=args.self_sustain_oracle_name,
             lambda_start_epoch=args.self_sustain_lambda_start,
             lambda_end_epoch=args.self_sustain_lambda_end,
+            oracle_max_len=args.self_sustain_oracle_max_len
         )
     return ClipLoss(
         local_loss=args.local_loss,

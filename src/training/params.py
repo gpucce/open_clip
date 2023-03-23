@@ -427,24 +427,33 @@ def parse_args(args):
     parser.add_argument(
         "--self-sustain",
         default=False,
-        action="store_true"
+        action="store_true",
         help="Whether to use selfsustaining clip loss"
     )
     parser.add_argument(
-        "--self-sustain-oracle-model",
+        "--self-sustain-oracle-name",
         default="sentence-transformers/all-MiniLM-L6-v2",
         help="Which pre-trained text encoder to use in self sustain loss"
     )
     parser.add_argument(
         "--self-sustain-lambda-start",
         default=0,
+        type=int,
         help="Which part of the training to start dropping teaching",
     )
     parser.add_argument(
         "--self-sustain-lambda-end",
         default=0,
+        type=int,
         help="Which part of the training to finish dropping teaching",
     )
+    parser.add_argument(
+        "--self-sustain-oracle-max-len",
+        default=128,
+        type=int,
+        help="The max length for the self sustain oracle tokenizer"
+    )
+    
     args = parser.parse_args(args)
 
     # If some params are not passed, we use the default values based on model name.

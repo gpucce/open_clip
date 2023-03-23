@@ -44,8 +44,9 @@ class CsvDataset(Dataset):
 
     def __getitem__(self, idx):
         images = self.transforms(Image.open(str(self.images[idx])))
-        texts = self.tokenize([str(self.captions[idx])])[0]
-        return images, texts
+        raw_texts = str(self.captions[idx])
+        texts = self.tokenize([raw_texts])[0]
+        return images, texts, raw_texts
 
 
 class SharedEpoch:
