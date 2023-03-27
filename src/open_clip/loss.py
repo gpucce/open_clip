@@ -206,7 +206,6 @@ class SelfSustainClipLoss(ClipLoss):
             oracle_s_emb = self.text_oracle(**tokenized)
             oracle_s_emb = mean_pooling(oracle_s_emb, attn_mask)
 
-        # TODO: create all this logit scales
         im2im_logits = self.get_logits(image_features, image_features, im2im_logit_scale)[0]
         txt2txt_logits = self.get_logits(text_features, text_features, txt2txt_logit_scale)[0]
         oracle_logits = self.get_logits(oracle_s_emb, oracle_s_emb, oracle_logit_scale)[0]
@@ -223,7 +222,7 @@ class SelfSustainClipLoss(ClipLoss):
             self._listnet_loss(logits_per_text, txt2txt_logits)
         ) / 4
         
-        # 2.symmetric listness loss for motion
+        # 2.symmetric listness loss for images
         multimod_embs_vs_im2im = (
             self._listnet_loss(im2im_logits, logits_per_image) + 
             self._listnet_loss(logits_per_image, im2im_logits) + 
