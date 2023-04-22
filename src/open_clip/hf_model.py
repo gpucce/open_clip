@@ -127,7 +127,8 @@ class HFTextEncoder(nn.Module):
             else:
                 if self.config.model_type == "gpt2":
                     self.transformer = create_func(model_args)
-                    self.config.pad_token_id = 50257
+                    self.config.pad_token_id = self.config.vocab_size + 1
+                    self.transformer.resize_token_embeddings(self.config.vocab_size + 1)
                 else:
                     self.transformer = create_func(model_args, add_pooling_layer=uses_transformer_pooler)
         else:
