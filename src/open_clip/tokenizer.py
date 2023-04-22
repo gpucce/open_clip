@@ -188,13 +188,18 @@ def tokenize(texts: Union[str, List[str]], context_length: int = 77) -> torch.Lo
     return result
 
 
+_HF_TOKENIZER_TO_ADD_PADDING = {
+    "gpt2",
+    "stanford-crfm/BioMedLM"
+}
+
 class HFTokenizer:
     """HuggingFace tokenizer wrapper"""
 
     def __init__(self, tokenizer_name: str):
         from transformers import AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        if tokenizer_name == "gpt2":
+        if tokenizer_name in _HF_TOKENIZER_TO_ADD_PADDING:
             self.tokenizer.add_special_tokens({"pad_token":"[PAD]"})
 
     def save_pretrained(self, dest):
