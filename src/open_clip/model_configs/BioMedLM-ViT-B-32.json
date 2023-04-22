@@ -7,8 +7,8 @@
         "patch_size": 32
     },
     "text_cfg": {
-        "hf_model_name": "gpt2",
-        "hf_tokenizer_name": "gpt2",
+        "hf_model_name": "stanford-crfm/BioMedLM",
+        "hf_tokenizer_name": "stanford-crfm/BioMedLM",
         "proj": "mlp",
         "pooler_type": "cls_pooler"
     }
