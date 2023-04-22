@@ -53,4 +53,17 @@ arch_dict = {
         },
         "pooler": "cls_pooler",
     },
+    # https://huggingface.co/docs/transformers/model_doc/gpt2
+    "gpt2": {
+        "config_names": {
+            "context_length": "n_positions",
+            "vocab_size": "vocab_size",
+            "width": "n_embd",
+            "n_heads": "n_head",
+            "layer": "n_layer",
+            "layer_attr": "h",
+            "token_embeddings_attr": "wte"
+        },
+        "pooler": "cls_pooler"
+    }
 }

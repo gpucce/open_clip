@@ -194,6 +194,8 @@ class HFTokenizer:
     def __init__(self, tokenizer_name: str):
         from transformers import AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        if tokenizer_name == "gpt2":
+            self.tokenizer.add_special_tokens({"pad_token":"[PAD]"})
 
     def save_pretrained(self, dest):
         self.tokenizer.save_pretrained(dest)

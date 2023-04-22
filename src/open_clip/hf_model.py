@@ -125,7 +125,11 @@ class HFTextEncoder(nn.Module):
                 self.transformer = create_func(model_args)
                 self.transformer = self.transformer.encoder
             else:
-                self.transformer = create_func(model_args, add_pooling_layer=uses_transformer_pooler)
+                if self.config.model_type == "gpt2":
+                    self.transformer = create_func(model_args)
+                    self.config.pad_token_id = 50257
+                else:
+                    self.transformer = create_func(model_args, add_pooling_layer=uses_transformer_pooler)
         else:
             self.config = config
             self.transformer = AutoModel.from_config(config)
@@ -150,7 +154,15 @@ class HFTextEncoder(nn.Module):
                 nn.GELU(),
                 nn.Linear(hidden_size, output_dim, bias=False),
             )
-
+    
+    def build_attention_mask(self, num_pos):
+        # lazily create causal attention mask, with full attention between the tokens
+        # pytorch uses additive attention mask; fill with -inf
+        mask = torch.empty(num_pos, num_pos)
+        mask.fill_(float("-inf"))
+        mask.triu_(1)  # zero out the lower diagonal
+        return mask
+    
     def forward(self, x: TensorType):
         attn_mask = (x != self.config.pad_token_id).long()
         out = self.transformer(input_ids=x, attention_mask=attn_mask)
