@@ -155,14 +155,6 @@ class HFTextEncoder(nn.Module):
                 nn.Linear(hidden_size, output_dim, bias=False),
             )
     
-    def build_attention_mask(self, num_pos):
-        # lazily create causal attention mask, with full attention between the tokens
-        # pytorch uses additive attention mask; fill with -inf
-        mask = torch.empty(num_pos, num_pos)
-        mask.fill_(float("-inf"))
-        mask.triu_(1)  # zero out the lower diagonal
-        return mask
-    
     def forward(self, x: TensorType):
         attn_mask = (x != self.config.pad_token_id).long()
         out = self.transformer(input_ids=x, attention_mask=attn_mask)
