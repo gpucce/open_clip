@@ -227,9 +227,7 @@ def parse_args(args):
         action='store_true',
         help="Lock full image tower by disabling gradients.",
     )
-    parser.add_argument(
-        "--lock-image-unlocked-groups",
-        type=int,
+    parser.add_argument(control_mgt
         default=0,
         help="Leave last n image tower layer groups unlocked.",
     )
@@ -476,7 +474,27 @@ def parse_args(args):
         help='A string to specify a specific distributed loss implementation.'
     )
 
+    parser.add_argument("--dino-config-file", default=None, help="path to config file")
+    parser.add_argument("--dino-repo-path", default=None, help="path to DINO repository")
+    parser.add_argument("--dino-eval-only", action="store_true", help="perform evaluation only")
+    parser.add_argument("--dino-eval", type=str, default="", help="Eval type to perform")
+    parser.add_argument(
+        "opts",
+        help="""
+Modify config options at the end of the command. For Yacs configs, use
+space-separated "PATH.KEY VALUE" pairs.
+For python-based LazyConfig, use "path.key=value".
+        """.strip(),
+        default=None,
+        nargs=argparse.REMAINDER,
+    )
+
     args = parser.parse_args(args)
+
+    if args.dino_config_file is not None:
+        assert args.dino_repo_path is not None, "Please provide the path to the DINO repository"
+        import sys
+        sys.path.insert(0, args.dino_repo_path)
 
     if 'timm' not in args.opt:
         # set default opt params based on model name (only if timm optimizer not used)

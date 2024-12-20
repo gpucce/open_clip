@@ -325,7 +325,7 @@ class ResampledShards2(IterableDataset):
                 yield dict(url=self.rng.choices(self.urls, weights=self.weights, k=1)[0])
 
 
-def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokenizer=None):
+def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokenizer=None, dino_preprocess_fns=None):
     input_shards = args.train_data if is_train else args.val_data
     assert input_shards is not None
     resampled = getattr(args, 'dataset_resampled', False) and is_train
@@ -348,7 +348,7 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
 
     if is_train and args.train_data_upsampling_factors is not None:
         assert resampled, "--train_data_upsampling_factors is only supported when sampling with replacement (with --dataset-resampled)."
-    
+
     if resampled:
         pipeline = [ResampledShards2(
             input_shards,
@@ -389,11 +389,27 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
     pipeline.extend([
         wds.select(filter_no_caption_or_no_image),
         wds.decode("pilrgb", handler=log_and_continue),
+    ])
+
+    last_pipeline_step = [
         wds.rename(image="jpg;png;jpeg;webp", text="txt"),
         wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0]),
         wds.to_tuple("image", "text"),
-        wds.batched(args.batch_size, partial=not is_train)
-    ])
+        wds.batched(args.batch_size, partial=not is_train),
+    ]
+    if dino_preprocess_fns is not None:
+        dino_preprocess_fn , dino_collate_fn = dino_preprocess_fns
+        last_pipeline_step = [
+            wds.rename(image="jpg;png;jpeg;webp", image_dino="jpg;png;jpeg;webp", text="txt"),
+            wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0],
+                         image_dino=dino_preprocess_fn),
+            wds.to_tuple(
+                "image", "text", "image_dino"
+                # "global_crops", "global_crops_teacher", "local_crops", "offsets"),
+            ),
+            wds.batched(args.batch_size, collation_fn=dino_collate_fn, partial=not is_train),
+        ]
+    pipeline.extend(last_pipeline_step)
 
     dataset = wds.DataPipeline(*pipeline)
 
@@ -443,7 +459,9 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
     return DataInfo(dataloader=dataloader, shared_epoch=shared_epoch)
 
 
-def get_csv_dataset(args, preprocess_fn, is_train, epoch=0, tokenizer=None):
+def get_csv_dataset(args, preprocess_fn, is_train, epoch=0, tokenizer=None, dino_preprocessing_fns=None):
+    if dino_preprocessing_fns is not None:
+        raise NotImplementedError("DINO preprocessing functions are not supported for CSV datasets.")
     input_filename = args.train_data if is_train else args.val_data
     assert input_filename
     dataset = CsvDataset(
@@ -500,7 +518,9 @@ class SyntheticDataset(Dataset):
         return image, self.preprocess_txt(self.caption)
 
 
-def get_synthetic_dataset(args, preprocess_fn, is_train, epoch=0, tokenizer=None):
+def get_synthetic_dataset(args, preprocess_fn, is_train, epoch=0, tokenizer=None, dino_preprocess_fns=None):
+    if dino_preprocess_fns is not None:
+        raise NotImplementedError("DINO preprocessing functions are not supported for synthetic datasets.")
     image_size = preprocess_fn.transforms[0].size
     dataset = SyntheticDataset(
         transform=preprocess_fn, image_size=image_size, dataset_size=args.train_num_samples, tokenizer=tokenizer)
@@ -541,15 +561,16 @@ def get_dataset_fn(data_path, dataset_type):
                 f"Tried to figure out dataset type, but failed for extension {ext}.")
     else:
         raise ValueError(f"Unsupported dataset type: {dataset_type}")
-    
 
-def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
+
+def get_data(args, preprocess_fns, epoch=0, tokenizer=None, dino_preprocess_fns=None):
     preprocess_train, preprocess_val = preprocess_fns
     data = {}
 
     if args.train_data or args.dataset_type == "synthetic":
         data["train"] = get_dataset_fn(args.train_data, args.dataset_type)(
-            args, preprocess_train, is_train=True, epoch=epoch, tokenizer=tokenizer)
+            args, preprocess_train, is_train=True, epoch=epoch, tokenizer=tokenizer, 
+            dino_preprocess_fns=dino_preprocess_fns)
 
     if args.val_data:
         data["val"] = get_dataset_fn(args.val_data, args.dataset_type)(

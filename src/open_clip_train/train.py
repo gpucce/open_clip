@@ -89,9 +89,18 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts = batch
-        images = images.to(device=device, dtype=input_dtype, non_blocking=True)
-        texts = texts.to(device=device, non_blocking=True)
+        if args.dino_config_file is None:
+            images, texts = batch
+            images = images.to(device=device, dtype=input_dtype, non_blocking=True)
+            texts = texts.to(device=device, non_blocking=True)
+        elif args.dino_config_file is not None:
+            images, texts, dino_images = batch
+            images = images.to(device=device, dtype=input_dtype, non_blocking=True)
+            dino_images = dino_images.to(device=device, dtype=input_dtype, non_blocking=True)
+            texts = texts.to(device=device, non_blocking=True)
+            images = (images, dino_images)
+
+
 
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()

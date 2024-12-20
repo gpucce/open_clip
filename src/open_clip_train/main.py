@@ -71,6 +71,7 @@ def get_latest_checkpoint(path: str, remote : bool):
 def main(args):
     args = parse_args(args)
 
+
     if torch.cuda.is_available():
         # This enables tf32 on Ampere GPUs which is only 8% slower than
         # float16 and almost as accurate as float32
@@ -115,6 +116,17 @@ def main(args):
     # Setup text logger
     args.log_level = logging.DEBUG if args.debug else logging.INFO
     setup_logging(args.log_path, args.log_level)
+
+    dino_cfg = None
+    if args.dino_config_file is not None:
+        try:
+            from open_clip_train import dino_utils
+        except ImportError:
+            dino_utils = None
+        assert dino_utils is not None, 'Please install dinov2.'
+        args.output_dir = os.path.join(args.log_path.replace('out.log', ""), "dino_logs")
+        args.config_file = args.dino_config_file
+        dino_cfg = dino_utils.setup(args)
 
     # Setup wandb, tensorboard, checkpoint logging
     args.wandb = 'wandb' in args.report_to or 'all' in args.report_to
@@ -240,6 +252,7 @@ def main(args):
         cache_dir=args.cache_dir,
         **model_kwargs,
     )
+
     if args.distill:
         # FIXME: currently assumes the model you're distilling from has the same tokenizer & transforms.
         dist_model, _, _ = create_model_and_transforms(
@@ -298,8 +311,9 @@ def main(args):
         if args.ddp_static_graph:
             # this doesn't exist in older PyTorch, arg only added if enabled
             ddp_args['static_graph'] = True
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device], **ddp_args)
-    
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, device_ids=[device], **ddp_args)
+
         if args.distill:
             dist_model = torch.nn.parallel.DistributedDataParallel(dist_model, device_ids=[device], **ddp_args)
 
@@ -395,11 +409,17 @@ def main(args):
 
     # initialize datasets
     tokenizer = get_tokenizer(args.model, cache_dir=args.cache_dir)
+
+    if dino_cfg is not None:
+        dino_data_transform, dino_collate_fn = dino_utils.get_dino_data_transforms(dino_cfg)
+
     data = get_data(
         args,
         (preprocess_train, preprocess_val),
         epoch=start_epoch,
         tokenizer=tokenizer,
+        dino_preprocess_fns=(dino_data_transform, dino_collate_fn)
+        if dino_cfg is not None else None,
     )
     assert len(data), 'At least one train or eval dataset must be specified.'
 
