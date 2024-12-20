@@ -478,6 +478,7 @@ def parse_args(args):
     parser.add_argument("--dino-repo-path", default=None, help="path to DINO repository")
     parser.add_argument("--dino-eval-only", action="store_true", help="perform evaluation only")
     parser.add_argument("--dino-eval", type=str, default="", help="Eval type to perform")
+
     parser.add_argument(
         "opts",
         help="""
