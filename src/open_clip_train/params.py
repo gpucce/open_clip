@@ -227,7 +227,9 @@ def parse_args(args):
         action='store_true',
         help="Lock full image tower by disabling gradients.",
     )
-    parser.add_argument(control_mgt
+    parser.add_argument(
+        "--lock-image-unlocked-groups",
+        type=int,
         default=0,
         help="Leave last n image tower layer groups unlocked.",
     )
@@ -478,7 +480,6 @@ def parse_args(args):
     parser.add_argument("--dino-repo-path", default=None, help="path to DINO repository")
     parser.add_argument("--dino-eval-only", action="store_true", help="perform evaluation only")
     parser.add_argument("--dino-eval", type=str, default="", help="Eval type to perform")
-
     parser.add_argument(
         "opts",
         help="""

@@ -6,9 +6,11 @@ from dinov2.data import (
     DataAugmentationDINO,
     MaskingGenerator)
 
-def adapted_dino_collate_fn(dino_cfg, _dino_collate_fn):
+def adapted_dino_collate_fn(_dino_collate_fn):
     def dino_collate_fn(x):
-        
+        images = torch.stack([s[0] for s in x])
+        texts = torch.stack([s[1] for s in x])
+        return (images, texts, _dino_collate_fn([(s[2], ()) for s in x])) # (s[2], ()) taken from dinov2
     return dino_collate_fn
 
 def get_dino_data_transforms(dino_cfg):
