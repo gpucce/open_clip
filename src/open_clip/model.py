@@ -53,6 +53,7 @@ class CLIPVisionCfg:
     timm_drop: float = 0.  # head dropout
     timm_drop_path: Optional[float] = None  # backbone stochastic depth
 
+    dino_cfg: Optional[Dict[str, Any]] = None  # DINO config for DINO pretraining
 
 @dataclass
 class CLIPTextCfg:
@@ -138,6 +139,13 @@ def _build_vision_tower(
             image_size=vision_cfg.image_size,
             width=vision_cfg.width,
         )
+    elif vision_cfg.dino_cfg:
+        import sys
+        # TODO: this needs to change
+        sys.path.insert(0, "/raid/homes/giovanni.puccetti/Repos/dinoclip/dinov2")
+        from dinov2.train import SSLMetaArch
+        dino_cfg = vision_cfg["dino_cfg"]
+        visual = SSLMetaArch(dino_cfg)
     else:
         vision_heads = vision_cfg.width // vision_cfg.head_width
         norm_layer = LayerNormFp32 if cast_dtype in (torch.float16, torch.bfloat16) else LayerNorm

@@ -122,10 +122,18 @@ def main(args):
         try:
             from open_clip_train import dino_utils
         except ImportError:
-            dino_utils = None
-        assert dino_utils is not None, 'Please install dinov2.'
+            raise Exception('Please install dinov2.')
         args.output_dir = os.path.join(args.log_path.replace('out.log', ""), "dino_logs")
         args.config_file = args.dino_config_file
+        # TODO: split dino args from args
+        # args.dino_output_dir = os.path.join(args.log_path.replace('out.log', ""), "dino_logs")
+        # dino_args = {}
+        # for i in vars(args):
+        #     if i.startswith('dino_'):
+        #         dino_args[i[5:]] = getattr(args, i)
+        # for i in list(args.__dict__.keys()):
+        #     if i.startswith('dino_'):
+        #         del args.__dict__[i]
         dino_cfg = dino_utils.setup(args)
 
     # Setup wandb, tensorboard, checkpoint logging

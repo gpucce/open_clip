@@ -230,6 +230,7 @@ def create_model(
         output_dict: Optional[bool] = None,
         require_pretrained: bool = False,
         load_weights_only: bool = True,
+        dino_cfg: Optional[Dict[str, Any]] = None,
         **model_kwargs,
 ):
     """Creates and configures a contrastive vision-language model.
@@ -300,6 +301,8 @@ def create_model(
         device = torch.device(device)
 
     model_cfg = model_cfg or get_model_config(model_name)
+    if dino_cfg is not None:
+        model_cfg["vision_cfg"]["dino_cfg"] = dino_cfg
     if model_cfg is not None:
         logging.info(f'Loaded {model_name} model config.')
     else:
@@ -342,6 +345,8 @@ def create_model(
             model = CustomTextCLIP(**model_cfg, cast_dtype=cast_dtype)
     else:
         model = CLIP(**model_cfg, cast_dtype=cast_dtype)
+
+
 
     if precision in ("fp16", "bf16"):
         dtype = torch.float16 if 'fp16' in precision else torch.bfloat16
@@ -481,6 +486,7 @@ def create_model_and_transforms(
         cache_dir: Optional[str] = None,
         output_dict: Optional[bool] = None,
         load_weights_only: bool = True,
+        dino_cfg: Optional[Dict[str, Any]] = None,
         **model_kwargs,
 ):
     force_preprocess_cfg = merge_preprocess_kwargs(
@@ -507,6 +513,7 @@ def create_model_and_transforms(
         cache_dir=cache_dir,
         output_dict=output_dict,
         load_weights_only=load_weights_only,
+        dino_cfg=dino_cfg,
         **model_kwargs,
     )
 
