@@ -191,7 +191,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
 
         if args.dino_config_file is not None:
             mom = dino_schedulers["momentum_scheduler"][step]
-            model.visual.update_teacher(mom)
+            if isinstance(model, DistributedDataParallel):
+                model.module.visual.update_teacher(mom)
+            else:
+                model.visual.update_teacher(mom)
 
         # reset gradient accum, if enabled
         if args.accum_freq > 1:
