@@ -135,7 +135,7 @@ def main(args):
         # for i in list(args.__dict__.keys()):
         #     if i.startswith('dino_'):
         #         del args.__dict__[i]
-        dino_cfg = dino_utils.setup(args)
+        dino_cfg = dino_utils.setup(args, init_distributed=False)
         dino_schedulers = dino_utils.build_schedulers(dino_cfg)
 
         dino_schedulers = {
