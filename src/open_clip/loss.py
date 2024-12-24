@@ -122,7 +122,7 @@ class ClipLoss(nn.Module):
         else:
             logits_per_image = logit_scale * image_features @ text_features.T
             logits_per_text = logit_scale * text_features @ image_features.T
-        
+
         return logits_per_image, logits_per_text
 
     def forward(self, image_features, text_features, logit_scale, output_dict=False):
@@ -137,6 +137,16 @@ class ClipLoss(nn.Module):
         ) / 2
 
         return {"contrastive_loss": total_loss} if output_dict else total_loss
+
+
+class DinoclipLoss(ClipLoss):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, image_features, text_features, logit_scale, dino_loss, output_dict=True):
+        out_dict = super().forward(image_features, text_features, logit_scale, output_dict=True)
+        out_dict.update(dino_loss)
+        return out_dict
 
 
 class CoCaLoss(ClipLoss):
