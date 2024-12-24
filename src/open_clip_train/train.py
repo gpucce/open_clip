@@ -61,7 +61,7 @@ def backward(total_loss, scaler):
         total_loss.backward()
 
 
-def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=None):
+def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=None, dino_schedulers=None):
     device = torch.device(args.device)
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
@@ -188,6 +188,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             if args.grad_clip_norm is not None:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm, norm_type=2.0)
             optimizer.step()
+
+        if args.dino_config_file is not None:
+            mom = dino_schedulers["momentum_scheduler"][step]
+            model.visual.update_teacher(mom)
 
         # reset gradient accum, if enabled
         if args.accum_freq > 1:

@@ -5,6 +5,7 @@ from dinov2.data import (
     collate_data_and_cast,
     DataAugmentationDINO,
     MaskingGenerator)
+from dinov2.train.train import build_schedulers
 
 def adapted_dino_collate_fn(_dino_collate_fn):
     def dino_collate_fn(x):

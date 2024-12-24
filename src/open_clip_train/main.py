@@ -118,12 +118,13 @@ def main(args):
     setup_logging(args.log_path, args.log_level)
 
     dino_cfg = None
+    dino_schedulers = None
     if args.dino_config_file is not None:
         try:
             from open_clip_train import dino_utils
         except ImportError:
             raise Exception('Please install dinov2.')
-        args.output_dir = os.path.join(args.log_path.replace('out.log', ""), "dino_logs")
+        args.output_dir = os.path.join(log_base_path.replace('out.log', ""), "dino_logs")
         args.config_file = args.dino_config_file
         # TODO: split dino args from args
         # args.dino_output_dir = os.path.join(args.log_path.replace('out.log', ""), "dino_logs")
@@ -135,6 +136,15 @@ def main(args):
         #     if i.startswith('dino_'):
         #         del args.__dict__[i]
         dino_cfg = dino_utils.setup(args)
+        dino_schedulers = dino_utils.build_schedulers(dino_cfg)
+
+        dino_schedulers = {
+            "lr_scheduler": dino_schedulers[0],
+            "wd_scheduler": dino_schedulers[1],
+            "momentum_scheduler": dino_schedulers[2],
+            "teacher_temp_schedulers": dino_schedulers[3],
+            "last_layer_lr_scheduler": dino_schedulers[4],
+        }
 
     # Setup wandb, tensorboard, checkpoint logging
     args.wandb = 'wandb' in args.report_to or 'all' in args.report_to
@@ -258,13 +268,14 @@ def main(args):
         pretrained_image=args.pretrained_image,
         output_dict=True,
         cache_dir=args.cache_dir,
+        dino_cfg=dino_cfg,
         **model_kwargs,
     )
 
     if args.distill:
         # FIXME: currently assumes the model you're distilling from has the same tokenizer & transforms.
         dist_model, _, _ = create_model_and_transforms(
-            args.distill_model, 
+            args.distill_model,
             args.distill_pretrained,
             device=device,
             precision=args.precision,
@@ -508,7 +519,7 @@ def main(args):
         if is_master(args):
             logging.info(f'Start epoch {epoch}')
 
-        train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer)
+        train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer, dino_schedulers=dino_schedulers)
         completed_epoch = epoch + 1
 
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
