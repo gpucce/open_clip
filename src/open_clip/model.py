@@ -22,12 +22,10 @@ from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionT
     text_global_pool
 from .utils import to_2tuple
 
-try:
-    import sys
-    sys.path.insert(0, "/raid/homes/giovanni.puccetti/Repos/dinoclip/dinov2")
-    from dinov2.train import SSLMetaArch
-except ImportError:
-    dinov2 = None
+def _is_sslmetaarch(x):
+    # checks that dino is being used without
+    # importing dinov2 in the whole file
+    return x.__class__.__name__ == "SSLMetaArch"
 
 @dataclass
 class CLIPVisionCfg:
@@ -146,10 +144,15 @@ def _build_vision_tower(
             width=vision_cfg.width,
         )
     elif vision_cfg.dino_cfg:
-        import sys
-        # TODO: this needs to change
-        if SSLMetaArch is None:
+        try:
+            import sys
+            import os
+            dinov2_path = os.environ.get("DINOV2_PATH")
+            sys.path.insert(0, dinov2_path)
+            from dinov2.train import SSLMetaArch
+        except ImportError:
             raise ImportError("DINO model requires dinov2 package to be installed")
+
         dino_cfg = vision_cfg.dino_cfg
         visual = SSLMetaArch(dino_cfg)
     else:
@@ -252,7 +255,7 @@ class CLIP(nn.Module):
         self.output_dict = output_dict
 
         self.visual = _build_vision_tower(embed_dim, vision_cfg, quick_gelu, cast_dtype)
-        if isinstance(self.visual, SSLMetaArch):
+        if _is_sslmetaarch(self.visual):
             width = vision_cfg["width"]
             scale = width ** -0.5
             self.visual_proj = nn.Parameter(scale * torch.randn(width, embed_dim))
@@ -304,7 +307,7 @@ class CLIP(nn.Module):
         return dino_loss_dict, F.normalize(features, dim=-1) if normalize else features
 
     def encode_image(self, image, normalize: bool = False):
-        if isinstance(self.visual, SSLMetaArch):
+        if _is_sslmetaarch(self.visual):
             out = self._encode_dino_image(image, normalize)
         else:
             out = self._encode_image(image, normalize)
@@ -342,7 +345,7 @@ class CLIP(nn.Module):
             text: Optional[torch.Tensor] = None,
     ):
         dino_loss_dict = None
-        if isinstance(self.visual, SSLMetaArch):
+        if _is_sslmetaarch(self.visual):
             dino_loss_dict, image_features = self.encode_image(image, normalize=True)
         else:
             image_features = self.encode_image(image, normalize=True) if image is not None else None

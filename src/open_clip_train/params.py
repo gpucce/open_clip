@@ -496,7 +496,9 @@ For python-based LazyConfig, use "path.key=value".
     if args.dino_config_file is not None:
         assert args.dino_repo_path is not None, "Please provide the path to the DINO repository"
         import sys
+        import os
         sys.path.insert(0, args.dino_repo_path)
+        os.environ["DINOV2_PATH"] = args.dino_repo_path
 
     if 'timm' not in args.opt:
         # set default opt params based on model name (only if timm optimizer not used)
