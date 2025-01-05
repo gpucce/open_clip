@@ -401,12 +401,8 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
         dino_preprocess_fn , dino_collate_fn = dino_preprocess_fns
         last_pipeline_step = [
             wds.rename(image="jpg;png;jpeg;webp", image_dino="jpg;png;jpeg;webp", text="txt"),
-            wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0],
-                         image_dino=dino_preprocess_fn),
-            wds.to_tuple(
-                "image", "text", "image_dino"
-                # "global_crops", "global_crops_teacher", "local_crops", "offsets"),
-            ),
+            wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0],image_dino=dino_preprocess_fn),
+            wds.to_tuple("image", "text", "image_dino"), # image_dino = {"global_crops", "global_crops_teacher", "local_crops", "offsets"},
             wds.batched(args.batch_size, collation_fn=dino_collate_fn, partial=not is_train),
         ]
     pipeline.extend(last_pipeline_step)

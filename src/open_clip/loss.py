@@ -140,11 +140,15 @@ class ClipLoss(nn.Module):
 
 
 class DinoclipLoss(ClipLoss):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, dino_loss_weight, dino_contrastive_loss_weight, **kwargs):
         super().__init__(*args, **kwargs)
+        self.dino_loss_weight = dino_loss_weight
+        self.dino_contrastive_loss_weight = dino_contrastive_loss_weight
 
     def forward(self, image_features, text_features, logit_scale, dino_loss, output_dict=True):
-        out_dict = super().forward(image_features, text_features, logit_scale, output_dict=True)
+        out_dict = super().forward(image_features, text_features, logit_scale, output_dict=output_dict)
+        out_dict = {k: v * self.dino_contrastive_loss_weight for k, v in out_dict.items()}
+        dino_loss = {k: v * self.dino_loss_weight for k, v in dino_loss.items()}
         out_dict.update(dino_loss)
         return out_dict
 

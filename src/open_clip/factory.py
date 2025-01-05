@@ -457,6 +457,8 @@ def create_loss(args):
         )
     elif args.dino_config_file is not None:
         return DinoclipLoss(
+            dino_loss_weight=args.dino_loss_weight,
+            dino_contrastive_loss_weight=args.dino_contrastive_loss_weight,
             local_loss=args.local_loss,
             gather_with_grad=args.gather_with_grad,
             cache_labels=True,

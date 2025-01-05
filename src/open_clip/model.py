@@ -155,6 +155,7 @@ def _build_vision_tower(
 
         dino_cfg = vision_cfg.dino_cfg
         visual = SSLMetaArch(dino_cfg)
+        visual.prepare_for_distributed_training(fsdp=False)
     else:
         vision_heads = vision_cfg.width // vision_cfg.head_width
         norm_layer = LayerNormFp32 if cast_dtype in (torch.float16, torch.bfloat16) else LayerNorm
@@ -304,7 +305,7 @@ class CLIP(nn.Module):
         dino_loss_dict, features_dict = self.visual.forward_backward(image[1], teacher_temp)
         features = features_dict["x_norm_clstoken"]
         features = features @ self.visual_proj
-        return dino_loss_dict, F.normalize(features, dim=-1) if normalize else features
+        return dino_loss_dict, (F.normalize(features, dim=-1) if normalize else features)
 
     def encode_image(self, image, normalize: bool = False):
         if _is_sslmetaarch(self.visual):

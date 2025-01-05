@@ -424,6 +424,18 @@ def parse_args(args):
         help="Weight assigned to contrastive loss when training CoCa."
     )
     parser.add_argument(
+        "--dino-loss-weight",
+        type=float,
+        default=1.0,
+        help="Weight assigned to all dino loss when training DINO."
+    )
+    parser.add_argument(
+        "--dino-contrastive-loss-weight",
+        type=float,
+        default=1.0,
+        help="Weight assigned to the contrastive loss when training DINO."
+    )
+    parser.add_argument(
         "--remote-sync",
         type=str,
         default=None,

@@ -190,11 +190,9 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             optimizer.step()
 
         if args.dino_config_file is not None:
+            # dino schedules momentum while SILC uses fixed momentum
             mom = dino_schedulers["momentum_scheduler"][step]
-            if isinstance(model, DistributedDataParallel):
-                model.module.visual.update_teacher(mom)
-            else:
-                model.visual.update_teacher(mom)
+            unwrap_model(model).visual.update_teacher(mom)
 
         # reset gradient accum, if enabled
         if args.accum_freq > 1:
@@ -228,13 +226,20 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             )
             samples_per_second = args.accum_freq * args.batch_size * args.world_size / batch_time_m.val
             samples_per_second_per_gpu = args.accum_freq * args.batch_size / batch_time_m.val
-            logging.info(
+            logging_info_str = (
                 f"Train Epoch: {epoch} [{num_samples:>{sample_digits}}/{samples_per_epoch} ({percent_complete:.0f}%)] "
                 f"Data (t): {data_time_m.avg:.3f} "
                 f"Batch (t): {batch_time_m.avg:.3f}, {samples_per_second:#g}/s, {samples_per_second_per_gpu:#g}/s/gpu "
                 f"LR: {optimizer.param_groups[0]['lr']:5f} "
-                f"Logit Scale: {logit_scale_scalar:.3f} " + loss_log
+                f"Logit Scale: {logit_scale_scalar:.3f} "
             )
+
+            if dino_schedulers is not None:
+                logging_info_str += f"Momentum: {mom:.3f} "
+
+            logging_info_str += loss_log
+
+            logging.info(logging_info_str)
 
             # Save train loss / etc. Using non avg meter values as loggers have their own smoothing
             log_data = {
@@ -244,9 +249,11 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 "samples_per_second_per_gpu": samples_per_second_per_gpu,
                 "scale": logit_scale_scalar,
                 "lr": optimizer.param_groups[0]["lr"]
-            }            
-            log_data.update({name:val.val for name,val in losses_m.items()})
+            }
+            if dino_schedulers is not None:
+                log_data.update({"momentum": mom})
 
+            log_data.update({name:val.val for name,val in losses_m.items()})
             log_data = {"train/" + name: val for name, val in log_data.items()}
 
             if tb_writer is not None:
