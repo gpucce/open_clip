@@ -105,9 +105,13 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()
 
+        teacher_temp = None
+        if args.dino_config_file is not None:
+            teacher_temp = dino_schedulers["teacher_temp_scheduler"][step]
+
         if args.accum_freq == 1:
             with autocast():
-                model_out = model(images, texts)
+                model_out = model(images, texts) if teacher_temp is None else model(images, texts, teacher_temp=teacher_temp)
                 logit_scale = model_out["logit_scale"]
                 if args.distill:
                     with torch.no_grad():
@@ -123,7 +127,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             # First, cache the features without any gradient tracking.
             with torch.no_grad():
                 with autocast():
-                    model_out = model(images, texts)
+                    model_out = model(images, texts) if teacher_temp is None else model(images, texts, teacher_temp=teacher_temp)
 
                     for f in ("logit_scale", "logit_bias"):
                         model_out.pop(f, None)
@@ -150,7 +154,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 images = accum_images[j]
                 texts = accum_texts[j]
                 with autocast():
-                    model_out = model(images, texts)
+                    model_out = model(images, texts) if teacher_temp is None else model(images, texts, teacher_temp=teacher_temp)
 
                     inputs_no_accum = {}
                     inputs_no_accum["logit_scale"] = logit_scale = model_out.pop("logit_scale")
@@ -236,6 +240,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
 
             if dino_schedulers is not None:
                 logging_info_str += f"Momentum: {mom:.3f} "
+                logging_info_str += f"Teacher Temp: {teacher_temp:.3f} "
 
             logging_info_str += loss_log
 
@@ -252,6 +257,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             }
             if dino_schedulers is not None:
                 log_data.update({"momentum": mom})
+                log_data.update({"teacher_temp": teacher_temp})
 
             log_data.update({name:val.val for name,val in losses_m.items()})
             log_data = {"train/" + name: val for name, val in log_data.items()}

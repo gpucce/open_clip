@@ -136,13 +136,14 @@ def main(args):
         #     if i.startswith('dino_'):
         #         del args.__dict__[i]
         dino_cfg = dino_utils.setup(args, init_distributed=False)
+        dino_cfg.train.OFFICIAL_EPOCH_LENGTH = args.train_num_samples
         dino_schedulers = dino_utils.build_schedulers(dino_cfg)
 
         dino_schedulers = {
             "lr_scheduler": dino_schedulers[0],
             "wd_scheduler": dino_schedulers[1],
             "momentum_scheduler": dino_schedulers[2],
-            "teacher_temp_schedulers": dino_schedulers[3],
+            "teacher_temp_scheduler": dino_schedulers[3],
             "last_layer_lr_scheduler": dino_schedulers[4],
         }
 
@@ -440,6 +441,7 @@ def main(args):
         dino_preprocess_fns=(dino_data_transform, dino_collate_fn)
         if dino_cfg is not None else None,
     )
+
     assert len(data), 'At least one train or eval dataset must be specified.'
 
     # create scheduler if train

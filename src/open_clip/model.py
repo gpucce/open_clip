@@ -301,15 +301,17 @@ class CLIP(nn.Module):
         features = self.visual(image)
         return F.normalize(features, dim=-1) if normalize else features
 
-    def _encode_dino_image(self, image, normalize: bool = False, teacher_temp: float = 0.5):
+    def _encode_dino_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
+        if teacher_temp is None:
+            teacher_temp = 1.0
         dino_loss_dict, features_dict = self.visual.forward_backward(image, teacher_temp)
         features = features_dict["x_norm_clstoken"]
         features = features @ self.visual_proj
         return dino_loss_dict, (F.normalize(features, dim=-1) if normalize else features)
 
-    def encode_image(self, image, normalize: bool = False):
+    def encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
         if _is_sslmetaarch(self.visual):
-            out = self._encode_dino_image(image, normalize)
+            out = self._encode_dino_image(image, normalize, teacher_temp)
         else:
             out = self._encode_image(image, normalize)
         return out
@@ -344,13 +346,15 @@ class CLIP(nn.Module):
             self,
             image: Optional[torch.Tensor] = None,
             text: Optional[torch.Tensor] = None,
+            teacher_temp: Optional[float] = None,
     ):
         dino_loss_dict = None
         if _is_sslmetaarch(self.visual):
-            dino_loss_dict, image_features = self.encode_image(image, normalize=True)
+            dino_loss_dict, image_features = self.encode_image(image, normalize=True, teacher_temp=teacher_temp)
         else:
             image_features = self.encode_image(image, normalize=True) if image is not None else None
         text_features = self.encode_text(text, normalize=True) if text is not None else None
+        image_features = image_features[:text_features.shape[0]]  # truncate to match batch size
 
         if self.output_dict:
             out_dict = {
