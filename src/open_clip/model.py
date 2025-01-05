@@ -302,7 +302,7 @@ class CLIP(nn.Module):
         return F.normalize(features, dim=-1) if normalize else features
 
     def _encode_dino_image(self, image, normalize: bool = False, teacher_temp: float = 0.5):
-        dino_loss_dict, features_dict = self.visual.forward_backward(image[1], teacher_temp)
+        dino_loss_dict, features_dict = self.visual.forward_backward(image, teacher_temp)
         features = features_dict["x_norm_clstoken"]
         features = features @ self.visual_proj
         return dino_loss_dict, (F.normalize(features, dim=-1) if normalize else features)
@@ -351,8 +351,6 @@ class CLIP(nn.Module):
         else:
             image_features = self.encode_image(image, normalize=True) if image is not None else None
         text_features = self.encode_text(text, normalize=True) if text is not None else None
-
-        image_features = image_features[:text_features.shape[0]]  # TODO: make this right, currently truncate to match text length
 
         if self.output_dict:
             out_dict = {
