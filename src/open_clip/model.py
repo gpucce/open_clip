@@ -155,7 +155,7 @@ def _build_vision_tower(
 
         dino_cfg = vision_cfg.dino_cfg
         visual = SSLMetaArch(dino_cfg)
-        visual.prepare_for_distributed_training(fsdp=False)
+        visual.prepare_for_distributed_training(fsdp=False) # copies student weights to teacher
     else:
         vision_heads = vision_cfg.width // vision_cfg.head_width
         norm_layer = LayerNormFp32 if cast_dtype in (torch.float16, torch.bfloat16) else LayerNorm
@@ -297,10 +297,6 @@ class CLIP(nn.Module):
                 no_wd.add('visual.' + n)
         return no_wd
 
-    def _encode_image(self, image, normalize: bool = False):
-        features = self.visual(image)
-        return F.normalize(features, dim=-1) if normalize else features
-
     def _encode_dino_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
         if teacher_temp is None:
             teacher_temp = 1.0
@@ -309,9 +305,18 @@ class CLIP(nn.Module):
         features = features @ self.visual_proj
         return dino_loss_dict, (F.normalize(features, dim=-1) if normalize else features)
 
+    def _encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
+        features = self.visual(image)
+        return F.normalize(features, dim=-1) if normalize else features
+
+    def _encode_dino_inference_image(self, image, normalize: bool = False):
+        features = self.visual.student.backbone(image)
+        features = features @ self.visual_proj
+        return F.normalize(features, dim=-1) if normalize else features
+
     def encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
         if _is_sslmetaarch(self.visual):
-            out = self._encode_dino_image(image, normalize, teacher_temp)
+            out = self._encode_dino_inference_image(image, normalize)
         else:
             out = self._encode_image(image, normalize)
         return out
@@ -350,7 +355,7 @@ class CLIP(nn.Module):
     ):
         dino_loss_dict = None
         if _is_sslmetaarch(self.visual):
-            dino_loss_dict, image_features = self.encode_image(image, normalize=True, teacher_temp=teacher_temp)
+            dino_loss_dict, image_features = self._encode_dino_image(image, normalize=True, teacher_temp=teacher_temp)
         else:
             image_features = self.encode_image(image, normalize=True) if image is not None else None
         text_features = self.encode_text(text, normalize=True) if text is not None else None

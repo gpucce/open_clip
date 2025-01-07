@@ -301,6 +301,12 @@ def create_model(
         device = torch.device(device)
 
     model_cfg = model_cfg or get_model_config(model_name)
+    dino_cfg = None
+    if "dino_cfg_path" in model_cfg["vision_cfg"]:
+        def load_dino_cfg(dino_cfg_path):
+            import omegaconf
+            return omegaconf.OmegaConf.load(dino_cfg_path)
+        dino_cfg = load_dino_cfg(model_cfg["vision_cfg"].pop("dino_cfg_path"))
     if dino_cfg is not None:
         model_cfg["vision_cfg"]["dino_cfg"] = dino_cfg
     if model_cfg is not None:
