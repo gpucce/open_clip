@@ -195,7 +195,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
 
         if args.dino_config_file is not None:
             # dino schedules momentum while SILC uses fixed momentum
-            mom = dino_schedulers["momentum_scheduler"](step)
+            mom = dino_schedulers["teacher_momentum_scheduler"](step)
             unwrap_model(model).visual.update_teacher(mom)
 
         # reset gradient accum, if enabled
