@@ -118,7 +118,6 @@ def main(args):
     setup_logging(args.log_path, args.log_level)
 
     dino_cfg = None
-    dino_schedulers = None
     if args.dino_config_file is not None:
         try:
             from open_clip_train import dino_utils
@@ -136,16 +135,6 @@ def main(args):
         #     if i.startswith('dino_'):
         #         del args.__dict__[i]
         dino_cfg = dino_utils.setup(args, init_distributed=False)
-        dino_cfg.train.OFFICIAL_EPOCH_LENGTH = args.train_num_samples
-        dino_schedulers = dino_utils.build_schedulers(dino_cfg)
-
-        dino_schedulers = {
-            "lr_scheduler": dino_schedulers[0],
-            "wd_scheduler": dino_schedulers[1],
-            "momentum_scheduler": dino_schedulers[2],
-            "teacher_temp_scheduler": dino_schedulers[3],
-            "last_layer_lr_scheduler": dino_schedulers[4],
-        }
 
     # Setup wandb, tensorboard, checkpoint logging
     args.wandb = 'wandb' in args.report_to or 'all' in args.report_to
@@ -463,6 +452,18 @@ def main(args):
             logging.error(
                 f'Unknown scheduler, {args.lr_scheduler}. Available options are: cosine, const, const-cooldown.')
             exit(1)
+
+    dino_schedulers = None
+    if 'train' in data and args.dino_config_file is not None:
+        # dino_cfg.train.OFFICIAL_EPOCH_LENGTH = args.train_num_samples
+
+        dino_schedulers = dino_utils.build_schedulers(dino_cfg)
+
+        # dino_schedulers = {
+        #     "teacher_temp_scheduler": ...,
+        #     "teacher_momentum_scheduler": ...,
+        #     "wd_scheduler": ...,
+        # }
 
     # determine if this worker should save logs and checkpoints. only do so if it is rank == 0
     args.save_logs = args.logs and args.logs.lower() != 'none' and is_master(args)

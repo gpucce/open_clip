@@ -7,6 +7,8 @@ from dinov2.data import (
     MaskingGenerator)
 from dinov2.train.train import build_schedulers
 
+from .scheduler import cosine_lr, const_lr, const_lr_cooldown
+
 def adapted_dino_collate_fn(_dino_collate_fn):
     def dino_collate_fn(x):
         images = torch.stack([s[0] for s in x])
@@ -40,3 +42,27 @@ def get_dino_data_transforms(dino_cfg):
     )
     dino_collate_fn = adapted_dino_collate_fn(_dino_collate_fn)
     return dino_data_transform, dino_collate_fn
+
+def build_schedulers(dino_cfg, warmup_length, steps):
+    teacher_cfg = dino_cfg.teacher
+    if teacher_cfg.teacher_temp_type == "constant":
+        teacher_temp_scheduler = cosine_lr(
+            optimizer=None, base_lr=teacher_cfg.teacher_temp, warmup_length=warmup_length, steps=steps)
+    elif teacher_cfg.teacher_temp_type == "constant":
+        teacher_temp_scheduler = const_lr(
+            optimizer=None, base_lr=teacher_cfg.teacher_temp, warmup_length=warmup_length, steps=steps)
+    if teacher_cfg.momentum_type == "cosine":
+        teacher_momentum_scheduler = cosine_lr(
+            optimizer=None, base_lr=teacher_cfg.momentum_teacher, warmup_length=warmup_length, steps=steps)
+    elif teacher_cfg.momentum_type == "constant":
+        teacher_momentum_scheduler = const_lr(
+            optimizer=None, base_lr=teacher_cfg.momentum_teacher, warmup_length=warmup_length, steps=steps)
+    optim_cfg = dino_cfg.optim
+    wd_scheduler = cosine_lr(
+        optimizer=None, base_lr=optim_cfg.weight_decay, warmup_length=warmup_length, steps=steps)
+
+    return {
+        "teacher_temp_scheduler": teacher_temp_scheduler,
+        "teacher_momentum_scheduler": teacher_momentum_scheduler,
+        "wd_scheduler": wd_scheduler,
+    }
