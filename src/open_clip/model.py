@@ -355,11 +355,17 @@ class CLIP(nn.Module):
     ):
         dino_loss_dict = None
         if _is_sslmetaarch(self.visual):
-            dino_loss_dict, image_features = self._encode_dino_image(image, normalize=True, teacher_temp=teacher_temp)
+            if text is not None:
+                dino_loss_dict, image_features = self._encode_dino_image(image, normalize=True, teacher_temp=teacher_temp)
+            else:
+                image_features = self._encode_dino_inference_image(image, normalize=True) if image is not None else None
         else:
             image_features = self.encode_image(image, normalize=True) if image is not None else None
+
         text_features = self.encode_text(text, normalize=True) if text is not None else None
-        image_features = image_features[:text_features.shape[0]]  # truncate to match batch size
+
+        if image_features is not None and text_features is not None:
+            image_features = image_features[:text_features.shape[0]] # truncate to match batch size
 
         if self.output_dict:
             out_dict = {
