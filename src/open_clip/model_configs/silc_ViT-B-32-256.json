@@ -1,0 +1,15 @@
+{
+    "embed_dim": 512,
+    "vision_cfg": {
+        "image_size": 256,
+        "width": 768,
+        "dino_cfg_path": "/leonardo_work/IscrB_REWATCH/cocadino/dinov2/dinov2/configs/silc_vit_b_32.yaml"
+    },
+    "text_cfg": {
+        "context_length": 77,
+        "vocab_size": 49408,
+        "width": 512,
+        "heads": 8,
+        "layers": 12
+    }
+}
