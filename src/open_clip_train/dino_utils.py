@@ -45,7 +45,7 @@ def get_dino_data_transforms(dino_cfg):
 
 def build_schedulers(dino_cfg, warmup_length, steps):
     teacher_cfg = dino_cfg.teacher
-    if teacher_cfg.teacher_temp_type == "constant":
+    if teacher_cfg.teacher_temp_type == "cosine":
         teacher_temp_scheduler = cosine_lr(
             optimizer=None, base_lr=teacher_cfg.teacher_temp, warmup_length=warmup_length, steps=steps)
     elif teacher_cfg.teacher_temp_type == "constant":
