@@ -241,7 +241,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             )
 
             if dino_schedulers is not None:
-                logging_info_str += f"Momentum: {mom:.3f} "
+                logging_info_str += f"Teacher Momentum: {mom:.3f} "
                 logging_info_str += f"Teacher Temp: {teacher_temp:.3f} "
 
             logging_info_str += loss_log
@@ -258,7 +258,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 "lr": optimizer.param_groups[0]["lr"]
             }
             if dino_schedulers is not None:
-                log_data.update({"momentum": mom})
+                log_data.update({"teacher_momentum": mom})
                 log_data.update({"teacher_temp": teacher_temp})
 
             log_data.update({name:val.val for name,val in losses_m.items()})

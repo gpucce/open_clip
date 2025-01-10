@@ -455,9 +455,8 @@ def main(args):
 
     dino_schedulers = None
     if 'train' in data and args.dino_config_file is not None:
-        # dino_cfg.train.OFFICIAL_EPOCH_LENGTH = args.train_num_samples
-
-        dino_schedulers = dino_utils.build_schedulers(dino_cfg, args.warmup, total_steps)
+        # SILC stes these two constants
+        dino_schedulers = dino_utils.build_schedulers(dino_cfg, 0, total_steps)
 
         # dino_schedulers = {
         #     "teacher_temp_scheduler": ...,
