@@ -364,9 +364,6 @@ class CLIP(nn.Module):
 
         text_features = self.encode_text(text, normalize=True) if text is not None else None
 
-        if image_features is not None and text_features is not None:
-            image_features = image_features[:text_features.shape[0]] # truncate to match batch size
-
         if self.output_dict:
             out_dict = {
                 "image_features": image_features,

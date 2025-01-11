@@ -146,7 +146,11 @@ class DinoclipLoss(ClipLoss):
         self.dino_contrastive_loss_weight = dino_contrastive_loss_weight
 
     def forward(self, image_features, text_features, logit_scale, dino_loss, output_dict=True):
-        out_dict = super().forward(image_features, text_features, logit_scale, output_dict=output_dict)
+        assert image_features.shape[0] % text_features.shape[0] == 0
+        image_features_splits = image_features.split(text_features.shape[0])
+        out_dict = {"contrastive_loss":0}
+        for image_features in image_features_splits:
+            out_dict["contrastive_loss"] += super().forward(image_features, text_features, logit_scale, output_dict=False)
         out_dict = {k: v * self.dino_contrastive_loss_weight for k, v in out_dict.items()}
         dino_loss = {k: v * self.dino_loss_weight for k, v in dino_loss.items()}
         out_dict.update(dino_loss)
