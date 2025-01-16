@@ -353,7 +353,7 @@ def main(args):
             )
         else:
             # If some params are not passed, we use the default values based on model name.
-            exclude = lambda n, p: p.ndim < 2 or "bn" in n or "ln" in n or "bias" in n or 'logit_scale' in n
+            exclude = lambda n, p: p.ndim < 2 or "bn" in n or "ln" in n or "bias" in n or 'logit_scale' in n or "norm" in n
             include = lambda n, p: not exclude(n, p)
 
             named_parameters = list(model.named_parameters())
