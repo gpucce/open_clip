@@ -86,7 +86,7 @@ def _token_to_tensor(token_id, device: str = "cpu") -> torch.Tensor:
     return token_id
 
 
-class CoCaDINO(nn.Module):
+class CoCaDino(nn.Module):
     def __init__(
             self,
             embed_dim,
