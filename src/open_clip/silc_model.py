@@ -13,11 +13,6 @@ from torch import nn
 from .transformer import text_global_pool
 from .model import CLIPVisionCfg, CLIPTextCfg, _build_text_tower
 
-
-class SILCVisionCfg(CLIPVisionCfg):
-    dino_cfg: Dict[Any] = {}
-    skip_text: bool = False
-
 def _build_dino_vision_tower(vision_cfg: CLIPVisionCfg,):
     if isinstance(vision_cfg, dict):
         vision_cfg = SILCVisionCfg(**vision_cfg)
@@ -44,7 +39,7 @@ class SILC(nn.Module):
     def __init__(
         self,
         embed_dim: int,
-        vision_cfg: SILCVisionCfg,
+        vision_cfg: CLIPVisionCfg,
         text_cfg: CLIPTextCfg,
         quick_gelu: bool = False,
         init_logit_scale: float = np.log(1 / 0.07),
@@ -55,12 +50,12 @@ class SILC(nn.Module):
     ):
         super().__init__()
         self.output_dict = output_dict
-        vision_cfg = SILCVisionCfg(**vision_cfg) if isinstance(vision_cfg, dict) else vision_cfg
+        vision_cfg = CLIPVisionCfg(**vision_cfg) if isinstance(vision_cfg, dict) else vision_cfg
         text_cfg = CLIPTextCfg(**text_cfg) if isinstance(text_cfg, dict) else text_cfg
 
         self.visual = _build_dino_vision_tower(vision_cfg)
 
-        width = vision_cfg["width"]
+        width = vision_cfg.width
         scale = width ** -0.5
         self.visual_proj = nn.Parameter(scale * torch.randn(width, embed_dim))
 

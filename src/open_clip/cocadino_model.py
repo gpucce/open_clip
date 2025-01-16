@@ -156,7 +156,7 @@ class CoCaDino(nn.Module):
         features = features @ self.visual_proj
         token_embs = features_dict["x_norm_regtokens"]
         return (
-            dino_loss_dict, 
+            dino_loss_dict,
             (F.normalize(features, dim=-1) if normalize else features),
             token_embs
         )
@@ -194,7 +194,7 @@ class CoCaDino(nn.Module):
             output_labels: bool = True,
     ):
         if image_latent is None or image_embs is None:
-            image_latent, image_embs = self._encode_image(image)
+            dino_loss, image_latent, image_embs = self._encode_dino_image(image)
 
         if text is None:
             return {"image_features": image_latent, "image_embs": image_embs}

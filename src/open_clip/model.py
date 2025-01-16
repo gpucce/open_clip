@@ -55,6 +55,7 @@ class CLIPVisionCfg:
 
     # SILC specific text tower config
     dino_cfg: Optional[dict] = None  # DINO config for DINO pretrained models
+    skip_text: bool = False
 
 
 @dataclass

@@ -1,0 +1,16 @@
+{
+    "embed_dim": 512,
+    "vision_cfg": {
+        "image_size": 256,
+        "width": 768,
+        "dino_cfg_path": "/raid/homes/giovanni.puccetti/Repos/dinoclip/dinov2/dinov2/configs/silc_vit_b_32.yaml",
+        "skip_text": true
+    },
+    "text_cfg": {
+        "context_length": 77,
+        "vocab_size": 49408,
+        "width": 512,
+        "heads": 8,
+        "layers": 12
+    }
+}
