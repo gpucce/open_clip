@@ -22,10 +22,6 @@ from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionT
     text_global_pool
 from .utils import to_2tuple
 
-def _is_sslmetaarch(x):
-    # checks that dino is being used without
-    # importing dinov2 in the whole file
-    return x.__class__.__name__ == "SSLMetaArch"
 
 @dataclass
 class CLIPVisionCfg:
@@ -57,7 +53,9 @@ class CLIPVisionCfg:
     timm_drop: float = 0.  # head dropout
     timm_drop_path: Optional[float] = None  # backbone stochastic depth
 
-    dino_cfg: Optional[Dict[str, Any]] = None  # DINO config for DINO pretraining
+    # SILC specific text tower config
+    dino_cfg: Optional[dict] = None  # DINO config for DINO pretrained models
+
 
 @dataclass
 class CLIPTextCfg:
@@ -143,19 +141,6 @@ def _build_vision_tower(
             image_size=vision_cfg.image_size,
             width=vision_cfg.width,
         )
-    elif vision_cfg.dino_cfg:
-        try:
-            import sys
-            import os
-            dinov2_path = os.environ.get("DINOV2_PATH")
-            sys.path.insert(0, dinov2_path)
-            from dinov2.train import SSLMetaArch
-        except ImportError:
-            raise ImportError("DINO model requires dinov2 package to be installed")
-
-        dino_cfg = vision_cfg.dino_cfg
-        visual = SSLMetaArch(dino_cfg)
-        visual.prepare_for_distributed_training(fsdp=False) # copies student weights to teacher
     else:
         vision_heads = vision_cfg.width // vision_cfg.head_width
         norm_layer = LayerNormFp32 if cast_dtype in (torch.float16, torch.bfloat16) else LayerNorm
@@ -256,10 +241,6 @@ class CLIP(nn.Module):
         self.output_dict = output_dict
 
         self.visual = _build_vision_tower(embed_dim, vision_cfg, quick_gelu, cast_dtype)
-        if _is_sslmetaarch(self.visual):
-            width = vision_cfg["width"]
-            scale = width ** -0.5
-            self.visual_proj = nn.Parameter(scale * torch.randn(width, embed_dim))
 
         text = _build_text_tower(embed_dim, text_cfg, quick_gelu, cast_dtype)
         self.transformer = text.transformer
@@ -297,29 +278,9 @@ class CLIP(nn.Module):
                 no_wd.add('visual.' + n)
         return no_wd
 
-    def _encode_dino_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
-        if teacher_temp is None:
-            teacher_temp = 1.0
-        dino_loss_dict, features_dict = self.visual.forward_backward(image, teacher_temp)
-        features = features_dict["x_norm_clstoken"]
-        features = features @ self.visual_proj
-        return dino_loss_dict, (F.normalize(features, dim=-1) if normalize else features)
-
-    def _encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
+    def encode_image(self, image, normalize: bool = False):
         features = self.visual(image)
         return F.normalize(features, dim=-1) if normalize else features
-
-    def _encode_dino_inference_image(self, image, normalize: bool = False):
-        features = self.visual.student.backbone(image)
-        features = features @ self.visual_proj
-        return F.normalize(features, dim=-1) if normalize else features
-
-    def encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
-        if _is_sslmetaarch(self.visual):
-            out = self._encode_dino_inference_image(image, normalize)
-        else:
-            out = self._encode_image(image, normalize)
-        return out
 
     def encode_text(self, text, normalize: bool = False):
         cast_dtype = self.transformer.get_cast_dtype()
@@ -351,17 +312,8 @@ class CLIP(nn.Module):
             self,
             image: Optional[torch.Tensor] = None,
             text: Optional[torch.Tensor] = None,
-            teacher_temp: Optional[float] = None,
     ):
-        dino_loss_dict = None
-        if _is_sslmetaarch(self.visual):
-            if text is not None:
-                dino_loss_dict, image_features = self._encode_dino_image(image, normalize=True, teacher_temp=teacher_temp)
-            else:
-                image_features = self._encode_dino_inference_image(image, normalize=True) if image is not None else None
-        else:
-            image_features = self.encode_image(image, normalize=True) if image is not None else None
-
+        image_features = self.encode_image(image, normalize=True) if image is not None else None
         text_features = self.encode_text(text, normalize=True) if text is not None else None
 
         if self.output_dict:
@@ -370,8 +322,6 @@ class CLIP(nn.Module):
                 "text_features": text_features,
                 "logit_scale": self.logit_scale.exp()
             }
-            if dino_loss_dict is not None:
-                out_dict['dino_loss'] = dino_loss_dict
             if self.logit_bias is not None:
                 out_dict['logit_bias'] = self.logit_bias
             return out_dict

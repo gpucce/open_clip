@@ -139,7 +139,7 @@ class ClipLoss(nn.Module):
         return {"contrastive_loss": total_loss} if output_dict else total_loss
 
 
-class DinoclipLoss(ClipLoss):
+class SILCLoss(ClipLoss):
     def __init__(self, *args, dino_loss_weight, dino_contrastive_loss_weight, **kwargs):
         super().__init__(*args, **kwargs)
         self.dino_loss_weight = dino_loss_weight

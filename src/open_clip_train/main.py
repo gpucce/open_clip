@@ -258,7 +258,6 @@ def main(args):
         pretrained_image=args.pretrained_image,
         output_dict=True,
         cache_dir=args.cache_dir,
-        dino_cfg=dino_cfg,
         **model_kwargs,
     )
 
@@ -455,7 +454,7 @@ def main(args):
 
     dino_schedulers = None
     if 'train' in data and args.dino_config_file is not None:
-        # SILC stes these two constants
+        # SILC sets teacher_temp_scheduler and teacher_momentum_scheduler to constants
         dino_schedulers = dino_utils.build_schedulers(dino_cfg, 0, total_steps)
 
         # dino_schedulers = {

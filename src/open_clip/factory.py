@@ -13,8 +13,10 @@ import torch
 from .convert import convert_state_dict
 from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
     resize_pos_embed, get_cast_dtype, resize_text_pos_embed, set_model_preprocess_cfg
+from .silc_model import SILC
 from .coca_model import CoCa
-from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss, DinoclipLoss
+from .cocadino_model import CoCaDino
+from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss, SILCLoss
 from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained,\
     list_pretrained_tags_by_model, download_pretrained_from_hf
 from .transform import image_transform_v2, AugmentationCfg, PreprocessCfg, merge_preprocess_dict, merge_preprocess_kwargs
@@ -230,7 +232,6 @@ def create_model(
         output_dict: Optional[bool] = None,
         require_pretrained: bool = False,
         load_weights_only: bool = True,
-        dino_cfg: Optional[Dict[str, Any]] = None,
         **model_kwargs,
 ):
     """Creates and configures a contrastive vision-language model.
@@ -301,6 +302,7 @@ def create_model(
         device = torch.device(device)
 
     model_cfg = model_cfg or get_model_config(model_name)
+    dino_cfg = None
     if "dino_cfg_path" in model_cfg["vision_cfg"]:
         def load_dino_cfg(dino_cfg_path):
             import omegaconf
@@ -345,11 +347,17 @@ def create_model(
     model_cfg = dict(model_cfg, **model_kwargs)  # merge cfg dict w/ kwargs (kwargs overrides cfg)
     if custom_text:
         if "multimodal_cfg" in model_cfg:
-            model = CoCa(**model_cfg, cast_dtype=cast_dtype)
+            if model_cfg["vision_cfg"].get("dino_cfg", None) is not None:
+                model = CoCaDino(**model_cfg, cast_dtype=cast_dtype)
+            else:
+                model = CoCa(**model_cfg, cast_dtype=cast_dtype)
         else:
             model = CustomTextCLIP(**model_cfg, cast_dtype=cast_dtype)
     else:
-        model = CLIP(**model_cfg, cast_dtype=cast_dtype)
+        if model_cfg["vision_cfg"].get("dino_cfg", None) is not None:
+            model = SILC(**model_cfg, cast_dtype=cast_dtype)
+        else:
+            model = CLIP(**model_cfg, cast_dtype=cast_dtype)
 
 
 
@@ -461,7 +469,7 @@ def create_loss(args):
             dist_impl=args.loss_dist_impl,  # siglip has multiple distributed implementations to choose from
         )
     elif args.dino_config_file is not None:
-        return DinoclipLoss(
+        return SILCLoss(
             dino_loss_weight=args.dino_loss_weight,
             dino_contrastive_loss_weight=args.dino_contrastive_loss_weight,
             local_loss=args.local_loss,
@@ -502,7 +510,6 @@ def create_model_and_transforms(
         cache_dir: Optional[str] = None,
         output_dict: Optional[bool] = None,
         load_weights_only: bool = True,
-        dino_cfg: Optional[Dict[str, Any]] = None,
         **model_kwargs,
 ):
     force_preprocess_cfg = merge_preprocess_kwargs(
@@ -529,7 +536,6 @@ def create_model_and_transforms(
         cache_dir=cache_dir,
         output_dict=output_dict,
         load_weights_only=load_weights_only,
-        dino_cfg=dino_cfg,
         **model_kwargs,
     )
 
