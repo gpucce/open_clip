@@ -60,7 +60,7 @@ class SILC(nn.Module):
         self.visual_proj = nn.Parameter(scale * torch.randn(width, embed_dim))
 
         self.skip_text = vision_cfg.skip_text
-        if self.skip_text:
+        if not self.skip_text:
             text = _build_text_tower(embed_dim, text_cfg, quick_gelu, cast_dtype)
             self.transformer = text.transformer
             self.context_length = text.context_length
@@ -86,7 +86,8 @@ class SILC(nn.Module):
     @torch.jit.ignore
     def set_grad_checkpointing(self, enable=True):
         self.visual.set_grad_checkpointing(enable)
-        self.transformer.grad_checkpointing = enable
+        if not self.skip_text:
+            self.transformer.grad_checkpointing = enable
 
     def _encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
         if teacher_temp is None:
