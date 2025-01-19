@@ -55,10 +55,7 @@ class SILC(nn.Module):
 
         self.visual = _build_dino_vision_tower(vision_cfg)
 
-        width = vision_cfg.width
-        scale = width ** -0.5
-        self.visual_proj = nn.Parameter(scale * torch.randn(width, embed_dim))
-
+        self.logit_scale = None
         self.skip_text = vision_cfg.skip_text
         if not self.skip_text:
             text = _build_text_tower(embed_dim, text_cfg, quick_gelu, cast_dtype)
@@ -72,8 +69,13 @@ class SILC(nn.Module):
             self.text_pool_type = text.pool_type
             self.register_buffer('attn_mask', text.attn_mask, persistent=False)
 
-        lshape = [1] if nonscalar_logit_scale else []
-        self.logit_scale = nn.Parameter(torch.ones(lshape) * init_logit_scale)
+            width = vision_cfg.width
+            scale = width ** -0.5
+            self.visual_proj = nn.Parameter(scale * torch.randn(width, embed_dim))
+
+            lshape = [1] if nonscalar_logit_scale else []
+            self.logit_scale = nn.Parameter(torch.ones(lshape) * init_logit_scale)
+
         if init_logit_bias is not None:
             self.logit_bias = nn.Parameter(torch.ones(lshape) * init_logit_bias)
         else:
@@ -94,7 +96,8 @@ class SILC(nn.Module):
             teacher_temp = 1.0
         dino_loss_dict, features_dict = self.visual.forward_backward(image, teacher_temp)
         features = features_dict["x_norm_clstoken"]
-        features = features @ self.visual_proj
+        if not self.skip_text:
+            features = features @ self.visual_proj
         return dino_loss_dict, (F.normalize(features, dim=-1) if normalize else features)
 
     def encode_image(self, image, normalize: bool = False):
@@ -149,7 +152,7 @@ class SILC(nn.Module):
             out_dict = {
                 "image_features": image_features,
                 "text_features": text_features,
-                "logit_scale": self.logit_scale.exp()
+                "logit_scale": self.logit_scale.exp() if not self.skip_text else None,
             }
             if dino_loss_dict is not None:
                 out_dict['dino_loss'] = dino_loss_dict
