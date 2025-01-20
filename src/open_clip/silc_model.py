@@ -15,7 +15,7 @@ from .model import CLIPVisionCfg, CLIPTextCfg, _build_text_tower
 
 def _build_dino_vision_tower(vision_cfg: CLIPVisionCfg,):
     if isinstance(vision_cfg, dict):
-        vision_cfg = SILCVisionCfg(**vision_cfg)
+        vision_cfg = CLIPVisionCfg(**vision_cfg)
 
     try:
         import sys
