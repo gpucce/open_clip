@@ -16,7 +16,7 @@ from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custo
 from .silc_model import SILC
 from .coca_model import CoCa
 from .cocadino_model import CoCaDino
-from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss, SILCLoss
+from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss, SILCLoss, CoCaDinoLoss
 from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained,\
     list_pretrained_tags_by_model, download_pretrained_from_hf
 from .transform import image_transform_v2, AugmentationCfg, PreprocessCfg, merge_preprocess_dict, merge_preprocess_kwargs
@@ -451,6 +451,18 @@ def create_loss(args):
             use_horovod=args.horovod,
         )
     elif "coca" in args.model.lower():
+        if args.dino_config_file is not None:
+            return CoCaDinoLoss(
+                caption_loss_weight=args.coca_caption_loss_weight,
+                clip_loss_weight=args.coca_contrastive_loss_weight,
+                dino_loss_weight=args.dino_loss_weight,
+                local_loss=args.local_loss,
+                gather_with_grad=args.gather_with_grad,
+                cache_labels=True,
+                rank=args.rank,
+                world_size=args.world_size,
+                use_horovod=args.horovod,
+            )
         return CoCaLoss(
             caption_loss_weight=args.coca_caption_loss_weight,
             clip_loss_weight=args.coca_contrastive_loss_weight,

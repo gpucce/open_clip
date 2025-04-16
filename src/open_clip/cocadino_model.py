@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .transformer import text_global_pool, AttentionalPooler
+from .transformer import text_global_pool, AttentionalPooler, LayerNorm
 from .model import CLIPVisionCfg, CLIPTextCfg, _build_text_tower
 from .coca_model import _build_text_decoder_tower, MultimodalCfg
 from .silc_model import _build_dino_vision_tower
@@ -46,8 +46,11 @@ class CoCaDino(nn.Module):
 
         self.visual = _build_dino_vision_tower(vision_cfg)
         self.attn_pooler = AttentionalPooler(
-
+            d_model=embed_dim,
+            context_dim=vision_cfg.width,
+            n_head=vision_cfg.attn_pooler_heads,
         )
+        self.attn_pool_norm = LayerNorm(embed_dim)
         self.text = _build_text_tower(
             embed_dim=embed_dim,
             text_cfg=text_cfg,
@@ -77,39 +80,31 @@ class CoCaDino(nn.Module):
     @torch.jit.ignore
     def set_grad_checkpointing(self, enable=True):
         self.visual.set_grad_checkpointing(enable)
-        if not self.skip_text:
-            self.transformer.grad_checkpointing = enable
+        self.transformer.grad_checkpointing = enable
 
     def _encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
         if teacher_temp is None:
             teacher_temp = 1.0
         dino_loss_dict, features_dict = self.visual.forward_backward(image, teacher_temp)
-        features = features_dict["x_norm_clstoken"]
-        if not self.skip_text:
-            features = features @ self.visual_proj
+        features = features_dict["x_norm"]
+        features = self.attn_pooler(features)
+        features = self.attn_pool_norm(features)
         return dino_loss_dict, (F.normalize(features, dim=-1) if normalize else features)
+
+    def _encode_text(self, text, normalize: bool = True):
+        text_latent, token_emb = self.text(text)
+        text_latent = F.normalize(text_latent, dim=-1) if normalize else text_latent
+        return text_latent, token_emb
 
     def encode_image(self, image, normalize: bool = False):
         features = self.visual.student.backbone(image)
-        features = features @ self.visual_proj
+        features = self.attn_pooler(features)
+        features = self.attn_pool_norm(features)
         return F.normalize(features, dim=-1) if normalize else features
 
-    def encode_text(self, text, normalize: bool = False):
-        cast_dtype = self.transformer.get_cast_dtype()
-
-        x = self.token_embedding(text).to(cast_dtype)  # [batch_size, n_ctx, d_model]
-
-        x = x + self.positional_embedding.to(cast_dtype)
-        x = self.transformer(x, attn_mask=self.attn_mask)
-        x = self.ln_final(x)  # [batch_size, n_ctx, transformer.width]
-        x, _ = text_global_pool(x, text, self.text_pool_type)
-        if self.text_projection is not None:
-            if isinstance(self.text_projection, nn.Linear):
-                x = self.text_projection(x)
-            else:
-                x = x @ self.text_projection
-
-        return F.normalize(x, dim=-1) if normalize else x
+    def encode_text(self, text, normalize: bool = True):
+        text_latent, _ = self._encode_text(text, normalize=normalize)
+        return text_latent
 
     # def get_logits(self, image, text):
     #     image_features = self.encode_image(image, normalize=True)
@@ -125,23 +120,31 @@ class CoCaDino(nn.Module):
             image: Optional[torch.Tensor] = None,
             text: Optional[torch.Tensor] = None,
             teacher_temp: Optional[float] = None,
+            output_labels: bool = True,
     ):
-        dino_loss_dict = None
-        if text is not None:
-            dino_loss_dict, image_features = self._encode_image(
-                image, normalize=True, teacher_temp=teacher_temp)
-        else:
-            image_features = self.encode_image(image, normalize=True) if image is not None else None
 
-        text_features = None
-        if not self.skip_text:
-            text_features = self.encode_text(text, normalize=True) if text is not None else None
+        dino_loss_dict, image_features = self._encode_image(
+            image, normalize=True, teacher_temp=teacher_temp)
+
+        image_latent, image_embs = image_features[:, 0], image_features[:, 1:]
+
+        # text_features = self.encode_text(text, normalize=True) if text is not None else None
+        text_latent, token_embs = self._encode_text(text)
+
+        labels: Optional[torch.Tensor] = text[:, 1:] if output_labels else None
+        if output_labels:
+            # align text_embs and thus logits with labels for teacher-forcing caption loss
+            token_embs = token_embs[:, :-1]
+
+        logits = self.text_decoder(image_embs[:token_embs.shape[0], :], token_embs)
 
         if self.output_dict:
             out_dict = {
-                "image_features": image_features,
-                "text_features": text_features,
-                "logit_scale": self.logit_scale.exp() if not self.skip_text else None,
+                "image_features": image_latent,
+                "text_features": text_latent,
+                "logits": logits,
+                "logit_scale": self.logit_scale.exp(),
+                "labels": labels,
             }
             if dino_loss_dict is not None:
                 out_dict['dino_loss'] = dino_loss_dict

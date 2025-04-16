@@ -204,6 +204,29 @@ class CoCaLoss(ClipLoss):
 
         return clip_loss, caption_loss
 
+class CoCaDinoLoss(CoCaLoss):
+    def __init__(self, *args, dino_loss_weight, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dino_loss_weight = dino_loss_weight
+
+    def forward(self, image_features, text_features, logits, labels, logit_scale, dino_loss, output_dict=True):
+        dino_loss = {k: v * self.dino_loss_weight for k, v in dino_loss.items()}
+        assert image_features.shape[0] % text_features.shape[0] == 0
+        image_features_splits = image_features.split(text_features.shape[0])
+        out_dict = {"contrastive_loss": 0, "caption_loss": 0}
+        for image_features in image_features_splits:
+            contrastive_loss, caption_loss = super().forward(
+                image_features,
+                text_features,
+                logits,
+                labels,
+                logit_scale,
+                output_dict=False
+            )
+            out_dict["contrastive_loss"] += contrastive_loss
+            out_dict["caption_loss"] += caption_loss
+        out_dict.update(dino_loss)
+        return out_dict
 
 class DistillClipLoss(ClipLoss):
 
