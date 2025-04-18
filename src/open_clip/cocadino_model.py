@@ -80,9 +80,10 @@ class CoCaDino(nn.Module):
     @torch.jit.ignore
     def set_grad_checkpointing(self, enable=True):
         self.visual.set_grad_checkpointing(enable)
-        self.transformer.grad_checkpointing = enable
+        self.text.set_grad_checkpointing(enable)
+        self.text_decoder.set_grad_checkpointing(enable)
 
-    def _encode_image(self, image, normalize: bool = False, teacher_temp: Optional[float] = None):
+    def _encode_image(self, image, normalize: bool = True, teacher_temp: Optional[float] = None):
         if teacher_temp is None:
             teacher_temp = 1.0
         dino_loss_dict, features_dict = self.visual.forward_backward(image, teacher_temp)
@@ -96,10 +97,9 @@ class CoCaDino(nn.Module):
         text_latent = F.normalize(text_latent, dim=-1) if normalize else text_latent
         return text_latent, token_emb
 
-    def encode_image(self, image, normalize: bool = False):
-        features = self.visual.student.backbone(image)
-        features = self.attn_pooler(features)
-        features = self.attn_pool_norm(features)
+    def encode_image(self, image, normalize: bool = True):
+        _, features = self._encode_image(image, normalize=normalize)
+        features = features[:, 0]
         return F.normalize(features, dim=-1) if normalize else features
 
     def encode_text(self, text, normalize: bool = True):
@@ -122,6 +122,9 @@ class CoCaDino(nn.Module):
             teacher_temp: Optional[float] = None,
             output_labels: bool = True,
     ):
+
+        if text is None:
+            return self.encode_image(image, normalize=True)
 
         dino_loss_dict, image_features = self._encode_image(
             image, normalize=True, teacher_temp=teacher_temp)
