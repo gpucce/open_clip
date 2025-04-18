@@ -98,7 +98,10 @@ class CoCaDino(nn.Module):
         return text_latent, token_emb
 
     def encode_image(self, image, normalize: bool = True):
-        _, features = self._encode_image(image, normalize=normalize)
+        features = self.visual.student.backbone.forward_features(
+            image)["x_norm"]
+        features = self.attn_pooler(features)
+        features = self.attn_pool_norm(features)
         features = features[:, 0]
         return F.normalize(features, dim=-1) if normalize else features
 
@@ -123,23 +126,25 @@ class CoCaDino(nn.Module):
             output_labels: bool = True,
     ):
 
+
+        text_latent, token_embs, labels, logits = None, None, None, None
+        dino_loss_dict = None
         if text is None:
-            return self.encode_image(image, normalize=True)
+            image_latent = self.encode_image(image)
 
-        dino_loss_dict, image_features = self._encode_image(
-            image, normalize=True, teacher_temp=teacher_temp)
+        else:
+            dino_loss_dict, image_features = self._encode_image(
+                image, normalize=True, teacher_temp=teacher_temp)
+            image_latent, image_embs = image_features[:, 0], image_features[:, 1:]
 
-        image_latent, image_embs = image_features[:, 0], image_features[:, 1:]
+            text_latent, token_embs = self._encode_text(text)
+            labels: Optional[torch.Tensor] = text[:, 1:] if output_labels else None
 
-        # text_features = self.encode_text(text, normalize=True) if text is not None else None
-        text_latent, token_embs = self._encode_text(text)
+            if output_labels:
+                # align text_embs and thus logits with labels for teacher-forcing caption loss
+                token_embs = token_embs[:, :-1]
 
-        labels: Optional[torch.Tensor] = text[:, 1:] if output_labels else None
-        if output_labels:
-            # align text_embs and thus logits with labels for teacher-forcing caption loss
-            token_embs = token_embs[:, :-1]
-
-        logits = self.text_decoder(image_embs[:token_embs.shape[0], :], token_embs)
+            logits = self.text_decoder(image_embs[:token_embs.shape[0], :], token_embs)
 
         if self.output_dict:
             out_dict = {
