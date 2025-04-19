@@ -161,5 +161,5 @@ class CoCaDino(nn.Module):
             return out_dict
 
         if self.logit_bias is not None:
-            return image_features, text_features, self.logit_scale.exp(), self.logit_bias
-        return image_features, text_features, self.logit_scale.exp()
+            return image_features, text_latent, self.logit_scale.exp(), self.logit_bias
+        return image_features, text_latent, self.logit_scale.exp()
